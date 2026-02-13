@@ -5,387 +5,406 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#e03a3e">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Deni Avdija Tracker - LIVE</title>
+    <title>Deni Avdija Tracker</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%23e03a3e' width='100' height='100'/%3E%3Ctext x='50%25' y='50%25' font-size='60' text-anchor='middle' dominant-baseline='middle' fill='white' font-family='Arial' font-weight='bold'%3E8%3C/text%3E%3C/svg%3E">
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        * {
-            -webkit-tap-highlight-color: transparent;
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #000;
-            overflow-x: hidden;
-            user-select: none;
-        }
-        .glass-card {
-            background: rgba(30, 30, 30, 0.95);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(224, 58, 62, 0.3);
-        }
-        .stat-pill {
-            background: linear-gradient(135deg, #2d0a0a 0%, #1a0505 100%);
-            border: 1px solid #e03a3e;
-        }
-        .nav-item.active {
-            transform: scale(1.05);
-        }
-        .slide-in {
-            animation: slideIn 0.3s ease-out;
-        }
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .score-live {
-            animation: pulse 2s infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.7; transform: scale(1.1); }
-        }
-        .bottom-nav {
-            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.8);
-        }
-        .badge {
-            animation: bounce 1s infinite;
-        }
-        @keyframes bounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-5px); }
-        }
-        .loading-spinner {
-            border: 3px solid rgba(224, 58, 62, 0.3);
-            border-top: 3px solid #e03a3e;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
+        *{-webkit-tap-highlight-color:transparent;margin:0;padding:0;box-sizing:border-box}
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#000;overflow-x:hidden;user-select:none}
+        .glass-card{background:rgba(30,30,30,0.95);backdrop-filter:blur(20px);border:1px solid rgba(224,58,62,0.3)}
+        .stat-pill{background:linear-gradient(135deg,#2d0a0a 0%,#1a0505 100%);border:1px solid #e03a3e}
+        .slide-in{animation:slideIn 0.3s ease-out}
+        @keyframes slideIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+        .spin{animation:spin 1s linear infinite}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .live-dot{animation:livePulse 2s infinite;background:#e03a3e}
+        @keyframes livePulse{0%,100%{box-shadow:0 0 0 0 rgba(224,58,62,0.4)}50%{box-shadow:0 0 0 6px rgba(224,58,62,0)}}
+        .bottom-nav{box-shadow:0 -4px 20px rgba(0,0,0,0.8)}
     </style>
 </head>
 <body class="bg-black text-white">
-    <div id="root"></div>
-    <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+<div id="root"></div>
+<script type="text/babel">
+const{useState,useEffect,useRef}=React;
 
-        // NBA API Configuration
-        const PLAYER_ID = "1630166"; // Deni Avdija's NBA ID
-        const TEAM_ID = "1610612757"; // Portland Trail Blazers ID
+// ESPN free public API - NO key needed
+const DENI_ID="4683021";
+const POR_ID="27";
 
-        function MobileApp() {
-            const [activeTab, setActiveTab] = useState('home');
-            const [refreshing, setRefreshing] = useState(false);
-            const [loading, setLoading] = useState(true);
-            const [pullDistance, setPullDistance] = useState(0);
-            const [playerData, setPlayerData] = useState(null);
-            const [error, setError] = useState(null);
-            const scrollRef = useRef(null);
-            const touchStart = useRef(0);
-            const lastUpdate = useRef(new Date());
+async function espn(path){
+    const r=await fetch("https://site.api.espn.com/apis/site/v2/sports/basketball/nba/"+path);
+    if(!r.ok)throw new Error("ESPN error");
+    return r.json();
+}
 
-            // Fetch real NBA data
-            const fetchNBAData = async () => {
-                try {
-                    setLoading(true);
-                    setError(null);
+function timeAgo(d){
+    const s=(Date.now()-new Date(d).getTime())/1000;
+    if(s<3600)return Math.floor(s/60)+"m ago";
+    if(s<86400)return Math.floor(s/3600)+"h ago";
+    return Math.floor(s/86400)+"d ago";
+}
 
-                    // Using NBA stats API - free and no key required
-                    const proxyUrl = 'https://api.allorigins.win/raw?url=';
-                    
-                    // Fetch player season stats
-                    const seasonStatsUrl = `https://stats.nba.com/stats/playerdashboardbyyearoveryear?DateFrom=&DateTo=&GameSegment=&LastNGames=0&LeagueID=00&Location=&MeasureType=Base&Month=0&OpponentTeamID=0&Outcome=&PORound=0&PaceAdjust=N&PerMode=PerGame&Period=0&PlayerID=${PLAYER_ID}&PlusMinus=N&Rank=N&Season=2025-26&SeasonSegment=&SeasonType=Regular+Season&ShotClockRange=&VsConference=&VsDivision=`;
-                    
-                    const response = await fetch(proxyUrl + encodeURIComponent(seasonStatsUrl), {
-                        headers: {
-                            'Accept': 'application/json',
-                        }
-                    });
+function App(){
+    const[tab,setTab]=useState("home");
+    const[data,setData]=useState(null);
+    const[loading,setLoading]=useState(true);
+    const[err,setErr]=useState(null);
+    const[pull,setPull]=useState(0);
+    const[refreshing,setRefreshing]=useState(false);
+    const scrollEl=useRef(null);
+    const ty=useRef(0);
+    const lastFetch=useRef(null);
 
-                    if (!response.ok) {
-                        throw new Error('Failed to fetch data');
-                    }
-
-                    const data = await response.json();
-                    
-                    // Parse the NBA API response
-                    if (data.resultSets && data.resultSets.length > 0) {
-                        const headers = data.resultSets[0].headers;
-                        const stats = data.resultSets[0].rowSet[0];
-                        
-                        // Map the data
-                        const ptsIndex = headers.indexOf('PTS');
-                        const rebIndex = headers.indexOf('REB');
-                        const astIndex = headers.indexOf('AST');
-                        const fgPctIndex = headers.indexOf('FG_PCT');
-                        const fg3PctIndex = headers.indexOf('FG3_PCT');
-                        const ftPctIndex = headers.indexOf('FT_PCT');
-                        const stlIndex = headers.indexOf('STL');
-                        const blkIndex = headers.indexOf('BLK');
-
-                        const processedData = {
-                            name: "Deni Avdija",
-                            number: 8,
-                            team: "Trail Blazers",
-                            teamFull: "Portland Trail Blazers",
-                            position: "F",
-                            seasonAvg: {
-                                ppg: stats[ptsIndex] || 25.5,
-                                rpg: stats[rebIndex] || 7.2,
-                                apg: stats[astIndex] || 6.7,
-                                spg: stats[stlIndex] || 1.1,
-                                bpg: stats[blkIndex] || 0.6,
-                                fg: ((stats[fgPctIndex] || 0.478) * 100).toFixed(1),
-                                tpt: ((stats[fg3PctIndex] || 0.364) * 100).toFixed(1),
-                                ft: ((stats[ftPctIndex] || 0.821) * 100).toFixed(1)
-                            }
-                        };
-
-                        setPlayerData(processedData);
-                    } else {
-                        // Fallback to default data if API fails
-                        setPlayerData(getDefaultData());
-                    }
-
-                    lastUpdate.current = new Date();
-                    setLoading(false);
-                } catch (err) {
-                    console.error('Error fetching NBA data:', err);
-                    setError('Using cached data - Live updates unavailable');
-                    setPlayerData(getDefaultData());
-                    setLoading(false);
+    async function loadAll(){
+        try{
+            setErr(null);
+            // 1. Athlete bio + stats log
+            const ath=await espn("athletes/"+DENI_ID);
+            const a=ath.athlete||{};
+            const cats=(a.statisticslog?.splits?.categories)||[];
+            let ppg="–",rpg="–",apg="–",spg="–",bpg="–",fg="–",tpt="–",ft="–";
+            for(const cat of cats){
+                for(const s of cat.stats||[]){
+                    if(s.name==="avgPoints")ppg=parseFloat(s.value).toFixed(1);
+                    if(s.name==="avgRebounds")rpg=parseFloat(s.value).toFixed(1);
+                    if(s.name==="avgAssists")apg=parseFloat(s.value).toFixed(1);
+                    if(s.name==="avgSteals")spg=parseFloat(s.value).toFixed(1);
+                    if(s.name==="avgBlocks")bpg=parseFloat(s.value).toFixed(1);
+                    if(s.name==="fieldGoalPct")fg=(parseFloat(s.value)*100).toFixed(1);
+                    if(s.name==="threePointPct")tpt=(parseFloat(s.value)*100).toFixed(1);
+                    if(s.name==="freeThrowPct")ft=(parseFloat(s.value)*100).toFixed(1);
                 }
-            };
+            }
 
-            // Fallback data
-            const getDefaultData = () => ({
-                name: "Deni Avdija",
-                number: 8,
-                team: "Trail Blazers",
-                teamFull: "Portland Trail Blazers",
-                position: "F",
-                seasonAvg: { ppg: 25.5, rpg: 7.2, apg: 6.7, spg: 1.1, bpg: 0.6, fg: 47.8, tpt: 36.4, ft: 82.1 },
-                lastGame: {
-                    date: "Feb 10, 2026",
-                    opponent: "PHI",
-                    result: "W",
-                    score: "135-118",
-                    pts: 26, reb: 10, ast: 8, stl: 2, blk: 1,
-                    fg: "8-16", tpt: "2-7", ft: "8-10", mins: 27
-                },
-                nextGame: {
-                    date: "Feb 21",
-                    time: "7:00 PM PST",
-                    opponent: "Nuggets",
-                    location: "Moda Center",
-                    tv: "ROOT Sports"
-                },
-                recentGames: [
-                    { date: "2/13", opp: "@ UTA", result: "W", score: "135-119", pts: 0, note: "DNP - Rest" },
-                    { date: "2/12", opp: "@ MIN", result: "L", score: "109-133", pts: 0, note: "DNP - Rest" },
-                    { date: "2/10", opp: "vs PHI", result: "W", score: "135-118", pts: 26, reb: 10, ast: 8 },
-                    { date: "2/8", opp: "vs MEM", result: "W", score: "122-115", pts: 22, reb: 7, ast: 6 },
-                    { date: "2/7", opp: "vs MEM", result: "W", score: "135-115", pts: 24, reb: 8, ast: 7 }
-                ],
-                upcomingGames: [
-                    { date: "Feb 21", time: "7:00 PM", opp: "vs DEN", tv: "ROOT" },
-                    { date: "Feb 23", time: "6:00 PM", opp: "@ PHX", tv: "ROOT" },
-                    { date: "Feb 25", time: "7:00 PM", opp: "vs MIN", tv: "ROOT" }
-                ],
-                news: [
-                    { time: "2h", title: "Back in lineup after rest", icon: "✅" },
-                    { time: "4d", title: "Double-double performance vs 76ers", icon: "🔥" },
-                    { time: "1w", title: "Selected to 2026 NBA All-Star Game", icon: "⭐" }
-                ]
+            // 2. Team schedule
+            const sched=await espn("teams/"+POR_ID+"/schedule");
+            const events=sched.events||[];
+            const recent=[],upcoming=[];
+            for(const ev of events){
+                const comp=ev.competitions?.[0]||{};
+                const home=comp.competitors?.find(c=>c.homeAway==="home")||{};
+                const away=comp.competitors?.find(c=>c.homeAway==="away")||{};
+                const porHome=home.team?.abbreviation==="POR";
+                const opp=porHome?away.team?.abbreviation:home.team?.abbreviation;
+                const oppFull=porHome?away.team?.displayName:home.team?.displayName;
+                const porScore=parseInt((porHome?home:away).score?.value||0);
+                const oppScore=parseInt((porHome?away:home).score?.value||0);
+                const status=comp.status?.type?.name||"";
+                const done=status==="STATUS_FINAL";
+                const live=status==="STATUS_IN_PROGRESS";
+                const gd=new Date(ev.date);
+                const dateStr=gd.toLocaleDateString("en-US",{month:"numeric",day:"numeric"});
+                const timeStr=gd.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
+                if(done&&recent.length<6){
+                    recent.unshift({date:dateStr,opp:(porHome?"vs ":"@ ")+opp,result:porScore>oppScore?"W":"L",score:porScore+"-"+oppScore});
+                } else if((live||!done)&&upcoming.length<5){
+                    upcoming.push({date:dateStr,time:timeStr,opp:(porHome?"vs ":"@ ")+oppFull,live});
+                }
+            }
+
+            // Last completed game + Deni boxscore
+            const lastEv=[...events].reverse().find(ev=>ev.competitions?.[0]?.status?.type?.name==="STATUS_FINAL");
+            let lastGame=null;
+            if(lastEv){
+                const comp=lastEv.competitions?.[0]||{};
+                const home=comp.competitors?.find(c=>c.homeAway==="home")||{};
+                const away=comp.competitors?.find(c=>c.homeAway==="away")||{};
+                const porHome=home.team?.abbreviation==="POR";
+                const opp=porHome?away.team?.abbreviation:home.team?.abbreviation;
+                const porScore=parseInt((porHome?home:away).score?.value||0);
+                const oppScore=parseInt((porHome?away:home).score?.value||0);
+                const gd=new Date(lastEv.date);
+                let ds={pts:"–",reb:"–",ast:"–",stl:"–",blk:"–",fg:"–",tpt3:"–",ft:"–",mins:"–"};
+                try{
+                    const box=await espn("summary?event="+lastEv.id);
+                    const porPlayers=(box.boxscore?.players||[]).find(p=>p.team?.abbreviation==="POR");
+                    const athletes=porPlayers?.statistics?.[0]?.athletes||[];
+                    const row=athletes.find(at=>at.athlete?.id===DENI_ID);
+                    if(row){
+                        const st=row.stats||[];
+                        // ESPN cols: MIN,FG,3PT,FT,OREB,DREB,REB,AST,STL,BLK,TO,PF,+/-,PTS
+                        ds={mins:st[0]||"–",fg:st[1]||"–",tpt3:st[2]||"–",ft:st[3]||"–",
+                            reb:parseInt(st[6])||0,ast:parseInt(st[7])||0,
+                            stl:parseInt(st[8])||0,blk:parseInt(st[9])||0,pts:parseInt(st[13])||0};
+                    }
+                }catch(_){}
+                lastGame={
+                    date:gd.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}),
+                    opponent:opp,result:porScore>oppScore?"W":"L",score:porScore+"-"+oppScore,...ds
+                };
+            }
+
+            // Next game
+            const nextEv=events.find(ev=>{
+                const s=ev.competitions?.[0]?.status?.type?.name||"";
+                return s==="STATUS_SCHEDULED"||s==="STATUS_IN_PROGRESS";
             });
-
-            // Load data on mount and set up auto-refresh
-            useEffect(() => {
-                fetchNBAData();
-                
-                // Auto-refresh every 5 minutes
-                const interval = setInterval(fetchNBAData, 5 * 60 * 1000);
-                return () => clearInterval(interval);
-            }, []);
-
-            const handleTouchStart = (e) => {
-                touchStart.current = e.touches[0].clientY;
-            };
-
-            const handleTouchMove = (e) => {
-                if (scrollRef.current?.scrollTop === 0) {
-                    const distance = e.touches[0].clientY - touchStart.current;
-                    if (distance > 0) setPullDistance(Math.min(distance, 80));
-                }
-            };
-
-            const handleTouchEnd = () => {
-                if (pullDistance > 60) {
-                    setRefreshing(true);
-                    fetchNBAData().then(() => {
-                        setRefreshing(false);
-                        setPullDistance(0);
-                    });
-                } else {
-                    setPullDistance(0);
-                }
-            };
-
-            if (loading && !playerData) {
-                return (
-                    <div className="h-screen flex flex-col items-center justify-center bg-black">
-                        <div className="loading-spinner mb-4"></div>
-                        <div className="text-[#e03a3e] font-bold text-xl">Loading Live Data...</div>
-                        <div className="text-gray-400 text-sm mt-2">Fetching Deni's stats</div>
-                    </div>
-                );
+            let nextGame=null;
+            if(nextEv){
+                const comp=nextEv.competitions?.[0]||{};
+                const home=comp.competitors?.find(c=>c.homeAway==="home")||{};
+                const away=comp.competitors?.find(c=>c.homeAway==="away")||{};
+                const porHome=home.team?.abbreviation==="POR";
+                const oppFull=porHome?away.team?.displayName:home.team?.displayName;
+                const gd=new Date(nextEv.date);
+                const live=comp.status?.type?.name==="STATUS_IN_PROGRESS";
+                nextGame={
+                    date:gd.toLocaleDateString("en-US",{month:"short",day:"numeric"}),
+                    time:gd.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit",timeZoneName:"short"}),
+                    opponent:oppFull,location:porHome?"Moda Center":oppFull,live
+                };
             }
 
-            if (!playerData) {
-                return (
-                    <div className="h-screen flex items-center justify-center bg-black">
-                        <div className="text-center p-6">
-                            <div className="text-red-500 text-4xl mb-4">⚠️</div>
-                            <div className="text-white font-bold text-xl mb-2">Unable to load data</div>
-                            <div className="text-gray-400 text-sm">Check your connection</div>
-                            <button 
-                                onClick={fetchNBAData}
-                                className="mt-4 bg-[#e03a3e] text-white px-6 py-3 rounded-full font-bold"
-                            >
-                                Retry
-                            </button>
+            // News
+            const newsRes=await espn("news?team="+POR_ID+"&limit=6");
+            const news=(newsRes.articles||[]).slice(0,6).map(n=>({
+                title:n.headline||n.title,
+                time:n.published?timeAgo(n.published):"",
+                icon:(n.headline||"").toLowerCase().includes("injur")?"🏥":
+                     (n.headline||"").toLowerCase().includes("win")?"🔥":"📰"
+            }));
+
+            lastFetch.current=new Date();
+            setData({seasonAvg:{ppg,rpg,apg,spg,bpg,fg,tpt,ft},lastGame,nextGame,recent,upcoming,news});
+            setLoading(false);
+        }catch(e){
+            console.error(e);
+            setErr("Could not load live data");
+            setLoading(false);
+        }
+    }
+
+    useEffect(()=>{loadAll();const t=setInterval(loadAll,300000);return()=>clearInterval(t);},[]);
+
+    const onTS=e=>{ty.current=e.touches[0].clientY};
+    const onTM=e=>{if(scrollEl.current?.scrollTop===0){const d=e.touches[0].clientY-ty.current;if(d>0)setPull(Math.min(d,80))}};
+    const onTE=()=>{if(pull>60){setRefreshing(true);loadAll().finally(()=>{setRefreshing(false);setPull(0)})}else setPull(0)};
+
+    if(loading&&!data)return(
+        <div className="h-screen flex flex-col items-center justify-center bg-black gap-4">
+            <div className="w-10 h-10 rounded-full border-4 border-[#e03a3e]/30 border-t-[#e03a3e] spin"></div>
+            <p className="text-[#e03a3e] font-bold text-lg">Loading Live Data…</p>
+            <p className="text-gray-500 text-sm">Connecting to ESPN</p>
+        </div>
+    );
+
+    if(err&&!data)return(
+        <div className="h-screen flex flex-col items-center justify-center bg-black gap-4 p-6 text-center">
+            <div className="text-5xl">⚠️</div>
+            <p className="text-white font-bold text-xl">{err}</p>
+            <button onClick={loadAll} className="bg-[#e03a3e] text-white px-8 py-3 rounded-full font-bold">Retry</button>
+        </div>
+    );
+
+    const d=data;
+
+    const SC=({label,value})=>(
+        <div className="stat-pill rounded-2xl p-4 text-center">
+            <div className="text-3xl font-bold text-[#e03a3e] mb-1">{value}</div>
+            <div className="text-xs text-gray-400 uppercase tracking-wide font-semibold">{label}</div>
+        </div>
+    );
+
+    const GRow=({g,past})=>(
+        <div className="glass-card rounded-xl p-4 mb-3">
+            <div className="flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                    <div className="text-sm text-gray-400 font-semibold w-12">{g.date}</div>
+                    <div>
+                        <div className="font-bold">{g.opp}</div>
+                        {past?<div className={`text-xs font-semibold ${g.result==="W"?"text-green-400":"text-red-400"}`}>{g.result} {g.score}</div>
+                             :<div className="text-xs text-gray-400">{g.time}{g.live?" · 🔴 LIVE":""}</div>}
+                    </div>
+                </div>
+                {!past&&<div className={`px-3 py-1 rounded-full text-xs font-bold ${g.live?"bg-green-500 text-white":"bg-[#e03a3e] text-white"}`}>{g.live?"LIVE":"NEXT"}</div>}
+            </div>
+        </div>
+    );
+
+    const Home=()=>(
+        <div className="slide-in pb-24">
+            <div className="bg-gradient-to-br from-[#e03a3e] via-[#b82f33] to-[#8b1f23] p-6 rounded-b-3xl mb-4 shadow-2xl">
+                <div className="flex items-center gap-4 mb-3">
+                    <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-lg">
+                        <span className="text-4xl font-black text-[#e03a3e]">8</span>
+                    </div>
+                    <div>
+                        <h1 className="text-3xl font-black text-white">Deni Avdija</h1>
+                        <div className="text-white/90 text-sm">Portland Trail Blazers · F</div>
+                        <div className="flex items-center gap-2 mt-1">
+                            <span className="text-yellow-300 text-lg">⭐</span>
+                            <span className="text-xs font-bold text-white bg-white/20 px-2 py-0.5 rounded-full">2026 ALL-STAR</span>
                         </div>
                     </div>
-                );
-            }
-
-            const data = playerData || getDefaultData();
-
-            const StatCard = ({ label, value, subtitle }) => (
-                <div className="stat-pill rounded-2xl p-4 text-center">
-                    <div className="text-3xl font-bold text-[#e03a3e] mb-1">{value}</div>
-                    <div className="text-xs text-gray-400 uppercase tracking-wide font-semibold">{label}</div>
-                    {subtitle && <div className="text-xs text-green-400 mt-1">{subtitle}</div>}
                 </div>
-            );
+                <div className="bg-white/10 rounded-xl p-2 flex justify-between items-center px-4">
+                    <div className="flex items-center gap-2">
+                        <span className="live-dot w-2 h-2 rounded-full inline-block"></span>
+                        <span className="text-xs font-bold text-white">LIVE · ESPN</span>
+                    </div>
+                    {lastFetch.current&&<span className="text-white/70 text-xs">{lastFetch.current.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}</span>}
+                </div>
+            </div>
 
-            const GameRow = ({ game, isPast }) => (
-                <div className="glass-card rounded-xl p-4 mb-3">
-                    <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-3">
-                            <div className="text-sm text-gray-400 font-semibold w-14">{game.date}</div>
+            <div className="px-4 mb-6">
+                <h2 className="text-xl font-bold mb-3">📊 2025-26 Season Averages</h2>
+                <div className="grid grid-cols-3 gap-3 mb-3">
+                    <SC label="PPG" value={d.seasonAvg.ppg}/>
+                    <SC label="RPG" value={d.seasonAvg.rpg}/>
+                    <SC label="APG" value={d.seasonAvg.apg}/>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                    <SC label="FG%"  value={d.seasonAvg.fg!=="–"?d.seasonAvg.fg+"%":"–"}/>
+                    <SC label="3P%"  value={d.seasonAvg.tpt!=="–"?d.seasonAvg.tpt+"%":"–"}/>
+                    <SC label="FT%"  value={d.seasonAvg.ft!=="–"?d.seasonAvg.ft+"%":"–"}/>
+                </div>
+            </div>
+
+            {d.lastGame&&(
+                <div className="px-4 mb-6">
+                    <h2 className="text-xl font-bold mb-3">🔥 Last Game</h2>
+                    <div className="glass-card rounded-2xl p-5">
+                        <div className="flex justify-between items-start mb-4">
                             <div>
-                                <div className="font-bold text-white text-base">{game.opp}</div>
-                                {isPast && game.score && (
-                                    <div className={`text-xs font-semibold ${game.result === 'W' ? 'text-green-400' : 'text-red-400'}`}>
-                                        {game.result} {game.score}
-                                    </div>
-                                )}
-                                {!isPast && game.time && (
-                                    <div className="text-xs text-gray-400">{game.time} • {game.tv}</div>
-                                )}
+                                <div className="text-gray-400 text-sm">{d.lastGame.date}</div>
+                                <div className="text-2xl font-bold">vs {d.lastGame.opponent}</div>
+                                <div className={`font-bold text-lg ${d.lastGame.result==="W"?"text-green-400":"text-red-400"}`}>{d.lastGame.result} {d.lastGame.score}</div>
+                            </div>
+                            <div className={`px-3 py-1 rounded-full text-xs font-bold ${d.lastGame.result==="W"?"bg-green-500/20 text-green-400":"bg-red-500/20 text-red-400"}`}>
+                                {d.lastGame.result==="W"?"WIN":"LOSS"}
                             </div>
                         </div>
-                        <div className="text-right">
-                            {isPast && game.pts !== undefined ? (
-                                game.note ? (
-                                    <div className="text-yellow-400 text-xs font-medium bg-yellow-900/20 px-2 py-1 rounded">{game.note}</div>
-                                ) : (
-                                    <>
-                                        <div className="text-2xl font-bold text-[#e03a3e]">{game.pts}</div>
-                                        <div className="text-xs text-gray-400">{game.reb}R • {game.ast}A</div>
-                                    </>
-                                )
-                            ) : (
-                                <div className="bg-[#e03a3e] text-white px-3 py-1.5 rounded-full text-xs font-bold">UPCOMING</div>
-                            )}
+                        <div className="grid grid-cols-5 gap-1 text-center">
+                            {[["PTS",d.lastGame.pts],["REB",d.lastGame.reb],["AST",d.lastGame.ast],["STL",d.lastGame.stl],["BLK",d.lastGame.blk]].map(([l,v])=>(
+                                <div key={l}>
+                                    <div className="text-3xl font-bold text-[#e03a3e]">{v}</div>
+                                    <div className="text-xs text-gray-400 font-semibold">{l}</div>
+                                </div>
+                            ))}
+                        </div>
+                        {d.lastGame.fg!=="–"&&(
+                            <div className="mt-4 pt-4 border-t border-gray-700 text-xs text-gray-400 text-center">
+                                {d.lastGame.mins} MIN · FG: {d.lastGame.fg} · 3PT: {d.lastGame.tpt3} · FT: {d.lastGame.ft}
+                            </div>
+                        )}
+                        {typeof d.lastGame.pts==="number"&&typeof d.lastGame.reb==="number"&&d.lastGame.pts>=10&&d.lastGame.reb>=10&&(
+                            <div className="mt-3 bg-yellow-900/30 border border-yellow-700/50 rounded-lg p-2 text-center">
+                                <span className="text-yellow-400 text-sm font-bold">🏆 DOUBLE-DOUBLE</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {d.nextGame&&(
+                <div className="px-4">
+                    <h2 className="text-xl font-bold mb-3">{d.nextGame.live?"🔴 LIVE NOW":"📅 Next Game"}</h2>
+                    <div className={`glass-card rounded-2xl p-5 border-2 ${d.nextGame.live?"border-green-500":"border-[#e03a3e]"}`}>
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <div className="text-gray-400 text-sm">{d.nextGame.date}</div>
+                                <div className="text-2xl font-bold">vs {d.nextGame.opponent}</div>
+                                <div className="text-gray-300 text-sm mt-1">🕐 {d.nextGame.time}</div>
+                                <div className="text-gray-400 text-sm mt-1">📍 {d.nextGame.location}</div>
+                            </div>
+                            {d.nextGame.live&&<div className="text-green-400 font-bold">● LIVE</div>}
                         </div>
                     </div>
                 </div>
-            );
+            )}
+        </div>
+    );
 
-            const renderHome = () => (
-                <div className="slide-in pb-24">
-                    <div className="bg-gradient-to-br from-[#e03a3e] via-[#b82f33] to-[#8b1f23] p-6 rounded-b-3xl mb-4 shadow-2xl">
-                        <div className="flex items-center gap-4 mb-3">
-                            <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-lg">
-                                <span className="text-4xl font-black text-[#e03a3e]">{data.number}</span>
+    const Games=()=>(
+        <div className="slide-in p-4 pb-24">
+            <h2 className="text-2xl font-bold mb-4">Recent Games</h2>
+            {d.recent.length?d.recent.map((g,i)=><GRow key={i} g={g} past/>):<p className="text-gray-400">No recent games</p>}
+            <h2 className="text-2xl font-bold mt-8 mb-4">Upcoming Games</h2>
+            {d.upcoming.length?d.upcoming.map((g,i)=><GRow key={i} g={g}/>):<p className="text-gray-400">No upcoming games</p>}
+        </div>
+    );
+
+    const Stats=()=>{
+        const bars=[
+            {l:"Points / game",v:d.seasonAvg.ppg,pct:Math.min(parseFloat(d.seasonAvg.ppg||0)/35*100,100)},
+            {l:"Field Goal %",v:d.seasonAvg.fg!=="–"?d.seasonAvg.fg+"%":"–",pct:parseFloat(d.seasonAvg.fg||0)},
+            {l:"3-Point %",v:d.seasonAvg.tpt!=="–"?d.seasonAvg.tpt+"%":"–",pct:parseFloat(d.seasonAvg.tpt||0)},
+            {l:"Free Throw %",v:d.seasonAvg.ft!=="–"?d.seasonAvg.ft+"%":"–",pct:parseFloat(d.seasonAvg.ft||0)},
+            {l:"Assists / game",v:d.seasonAvg.apg,pct:Math.min(parseFloat(d.seasonAvg.apg||0)/12*100,100)},
+            {l:"Rebounds / game",v:d.seasonAvg.rpg,pct:Math.min(parseFloat(d.seasonAvg.rpg||0)/15*100,100)},
+            {l:"Steals / game",v:d.seasonAvg.spg,pct:Math.min(parseFloat(d.seasonAvg.spg||0)/3*100,100)},
+            {l:"Blocks / game",v:d.seasonAvg.bpg,pct:Math.min(parseFloat(d.seasonAvg.bpg||0)/3*100,100)},
+        ];
+        return(
+            <div className="slide-in p-4 pb-24">
+                <h2 className="text-2xl font-bold mb-4">📊 Live Season Stats</h2>
+                <div className="glass-card rounded-2xl p-5 space-y-5">
+                    {bars.map((b,i)=>(
+                        <div key={i}>
+                            <div className="flex justify-between mb-1">
+                                <span className="text-gray-300 text-sm">{b.l}</span>
+                                <span className="font-bold">{b.v}</span>
                             </div>
-                            <div className="flex-1">
-                                <h1 className="text-3xl font-black mb-1 text-white drop-shadow-lg">{data.name}</h1>
-                                <div className="text-white/90 text-sm font-medium">{data.teamFull}</div>
-                                <div className="flex items-center gap-2 mt-2">
-                                    <span className="badge text-yellow-300 text-xl drop-shadow">⭐</span>
-                                    <span className="text-xs font-bold text-white bg-white/20 px-2 py-0.5 rounded-full">2026 ALL-STAR</span>
-                                </div>
+                            <div className="w-full bg-gray-700 rounded-full h-2">
+                                <div className="bg-[#e03a3e] h-2 rounded-full transition-all duration-700" style={{width:`${b.pct||0}%`}}></div>
                             </div>
                         </div>
-                        <div className="text-center bg-white/10 rounded-xl p-2 backdrop-blur-sm">
-                            <div className="text-xs text-white/80 font-semibold">
-                                {error ? '⚠️ ' + error : '🔴 LIVE DATA'}
-                            </div>
-                            <div className="text-xs text-white/90">{lastUpdate.current.toLocaleString()}</div>
+                    ))}
+                </div>
+            </div>
+        );
+    };
+
+    const News=()=>(
+        <div className="slide-in p-4 pb-24">
+            <h2 className="text-2xl font-bold mb-4">📰 Trail Blazers News</h2>
+            {d.news.length?d.news.map((n,i)=>(
+                <div key={i} className="glass-card rounded-xl p-4 mb-3">
+                    <div className="flex gap-3 items-start">
+                        <span className="text-2xl">{n.icon}</span>
+                        <div>
+                            <div className="text-xs text-gray-400 mb-1">{n.time}</div>
+                            <div className="font-semibold leading-snug">{n.title}</div>
                         </div>
                     </div>
+                </div>
+            )):<p className="text-gray-400">No news found</p>}
+        </div>
+    );
 
-                    <div className="px-4 mb-6">
-                        <h2 className="text-xl font-bold mb-3 flex items-center gap-2">
-                            <span>📊</span> 2025-26 Season (LIVE)
-                        </h2>
-                        <div className="grid grid-cols-3 gap-3 mb-3">
-                            <StatCard label="PPG" value={data.seasonAvg.ppg} />
-                            <StatCard label="RPG" value={data.seasonAvg.rpg} />
-                            <StatCard label="APG" value={data.seasonAvg.apg} />
-                        </div>
-                        <div className="grid grid-cols-3 gap-3">
-                            <StatCard label="FG%" value={`${data.seasonAvg.fg}%`} />
-                            <StatCard label="3P%" value={`${data.seasonAvg.tpt}%`} />
-                            <StatCard label="FT%" value={`${data.seasonAvg.ft}%`} />
-                        </div>
-                    </div>
+    return(
+        <div className="h-screen flex flex-col overflow-hidden">
+            <div className="bg-[#e03a3e] h-1"></div>
+            <div className="bg-[#e03a3e] py-2 text-center text-sm font-semibold transition-transform"
+                 style={{transform:`translateY(${pull>0?pull-50:-50}px)`}}>
+                {refreshing?"🔄 Updating…":pull>30?"↓ Release to refresh":"⬇️ Pull to refresh"}
+            </div>
+            <div ref={scrollEl} className="flex-1 overflow-y-auto"
+                 onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={onTE}>
+                {tab==="home"&&<Home/>}
+                {tab==="games"&&<Games/>}
+                {tab==="stats"&&<Stats/>}
+                {tab==="news"&&<News/>}
+            </div>
+            <div className="bottom-nav bg-black border-t border-gray-800">
+                <div className="grid grid-cols-4 p-2 gap-1">
+                    {[["home","🏠","Home"],["games","📅","Games"],["stats","📊","Stats"],["news","📰","News"]].map(([id,icon,label])=>(
+                        <button key={id} onClick={()=>setTab(id)}
+                            className={`flex flex-col items-center py-2 rounded-xl transition-all ${tab===id?"bg-[#e03a3e] text-white scale-105":"text-gray-400"}`}>
+                            <span className="text-2xl">{icon}</span>
+                            <span className="text-xs font-bold mt-0.5">{label}</span>
+                        </button>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
 
-                    {data.lastGame && (
-                        <div className="px-4 mb-6">
-                            <h2 className="text-xl font-bold mb-3 flex items-center gap-2">
-                                <span>🔥</span> Last Game
-                            </h2>
-                            <div className="glass-card rounded-2xl p-6 shadow-xl">
-                                <div className="flex justify-between items-start mb-5">
-                                    <div>
-                                        <div className="text-sm text-gray-400 mb-1">{data.lastGame.date}</div>
-                                        <div className="text-2xl font-bold mb-1">vs {data.lastGame.opponent}</div>
-                                        <div className="flex items-center gap-2">
-                                            <div className="text-green-400 font-bold text-lg">
-                                                {data.lastGame.result} {data.lastGame.score}
-                                            </div>
-                                            <div className="bg-green-500/20 text-green-400 px-2 py-0.5 rounded text-xs font-bold">WIN</div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-5 gap-2 text-center mb-4">
-                                    <div>
-                                        <div className="text-3xl font-bold text-[#e03a3e]">{data.lastGame.pts}</div>
-                                        <div className="text-xs text-gray-400 font-semibold">PTS</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-3xl font-bold text-[#e03a3e]">{data.lastGame.reb}</div>
-                                        <div className="text-xs text-gray-400 font-semibold">REB</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-3xl font-bold text-[#e03a3e]">{data.lastGame.ast}</div>
-                                        <div className="text-xs text-gray-400 font-semibold">AST</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-3xl font-bold text-[#e03a3e]">{data.lastGame.stl}</div>
-        
+ReactDOM.render(<App/>,document.getElementById("root"));
+</script>
+</body>
+</html>
